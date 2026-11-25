@@ -15,7 +15,85 @@ transactions_bp = Blueprint(
 
 @transactions_bp.route("/", methods=["GET"])
 def list_transactions():
-    transactions = Transaction.query.order_by(
+    query = Transaction.query
+
+    # Filtro por tipo
+    transaction_type = request.args.get("type")
+
+    if transaction_type:
+        if transaction_type not in ["income", "expense"]:
+            return jsonify({
+                "error": "Tipo de transação inválido"
+            }), 400
+
+        query = query.filter_by(type=transaction_type)
+
+    # Filtro por categoria
+    category_id = request.args.get("category_id")
+
+    if category_id:
+        try:
+            category_id = int(category_id)
+        except ValueError:
+            return jsonify({
+                "error": "ID de categoria inválido"
+            }), 400
+
+        category = db.session.get(Category, category_id)
+
+        if not category:
+            return jsonify({
+                "error": "Categoria não encontrada"
+            }), 404
+
+        query = query.filter_by(category_id=category_id)
+
+        # Filtros por mês e ano
+    month = request.args.get("month")
+    year = request.args.get("year")
+
+    if month or year:
+        try:
+            current_year = date.today().year
+
+            selected_year = int(year) if year else current_year
+            selected_month = int(month) if month else None
+
+            if selected_year < 1900 or selected_year > 2100:
+                raise ValueError
+
+            if selected_month and not 1 <= selected_month <= 12:
+                raise ValueError
+
+        except ValueError:
+            return jsonify({
+                "error": "Mês ou ano inválido"
+            }), 400
+
+        if selected_month:
+            start_date = date(selected_year, selected_month, 1)
+
+            if selected_month == 12:
+                end_date = date(selected_year + 1, 1, 1)
+            else:
+                end_date = date(selected_year, selected_month + 1, 1)
+
+            query = query.filter(
+                Transaction.date >= start_date,
+                Transaction.date < end_date
+            )
+
+        else:
+            start_date = date(selected_year, 1, 1)
+            end_date = date(selected_year + 1, 1, 1)
+
+            query = query.filter(
+                Transaction.date >= start_date,
+                Transaction.date < end_date
+            )
+
+    # Executa a consulta
+    transactions = query.order_by(
         Transaction.date.desc()
     ).all()
 
@@ -32,9 +110,7 @@ def list_transactions():
             "category": transaction.category.name
         })
 
-    return jsonify({
-        "transactions": result
-    })
+    return jsonify({"transactions": result})
 
 
 @transactions_bp.route("/categories", methods=["POST"])
@@ -66,6 +142,101 @@ def create_category():
         "name": category.name,
         "type": category.type
     }), 201
+
+
+@transactions_bp.route("/categories", methods=["GET"])
+def list_categories():
+    categories = Category.query.order_by(
+        Category.name.asc()
+    ).all()
+
+    result = []
+
+    for category in categories:
+        result.append({
+            "id": category.id,
+            "name": category.name,
+            "type": category.type
+        })
+
+    return jsonify({
+        "categories": result
+    })
+
+
+
+@transactions_bp.route("/categories/<int:category_id>", methods=["PUT"])
+def update_category(category_id):
+    category = db.session.get(Category, category_id)
+
+    if not category:
+        return jsonify({
+            "error": "Categoria não encontrada"
+        }), 404
+
+    data = request.get_json(silent=True)
+
+    if not data:
+        return jsonify({
+            "error": "Dados não fornecidos"
+        }), 400
+
+    if "name" in data:
+        name = data["name"]
+
+        if not isinstance(name, str) or not name.strip():
+            return jsonify({
+                "error": "Nome inválido"
+            }), 400
+
+        category.name = name.strip()
+
+    if "type" in data:
+        if data["type"] not in ["income", "expense"]:
+            return jsonify({
+                "error": "Tipo inválido"
+            }), 400
+
+        # Não permite mudar o tipo se houver
+        # transações associadas à categoria.
+        if category.transactions:
+            return jsonify({
+                "error": "Não é possível alterar o tipo de uma categoria que possui transações"
+            }), 400
+
+        category.type = data["type"]
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Categoria atualizada com sucesso!",
+        "id": category.id,
+        "name": category.name,
+        "type": category.type
+    }), 200
+
+
+@transactions_bp.route("/categories/<int:category_id>", methods=["DELETE"])
+def delete_category(category_id):
+    category = db.session.get(Category, category_id)
+
+    if not category:
+        return jsonify({
+            "error": "Categoria não encontrada"
+        }), 404
+
+    if category.transactions:
+        return jsonify({
+            "error": "Não é possível excluir uma categoria que possui transações associadas"
+        }), 400
+
+    db.session.delete(category)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Categoria excluída com sucesso!"
+    }), 200
+
 
 @transactions_bp.route("/", methods=["POST"])
 def create_transaction():
@@ -231,3 +402,92 @@ def delete_transaction(transaction_id):
     return jsonify({
         "message": "Transação excluída com sucesso!"
     }), 200
+
+@transactions_bp.route("/summary", methods=["GET"])
+def financial_summary():
+    transactions = Transaction.query.all()
+
+    total_income = sum(
+        (transaction.amount for transaction in transactions
+         if transaction.type == "income"),
+        Decimal("0.00")
+    )
+
+    total_expense = sum(
+        (transaction.amount for transaction in transactions
+         if transaction.type == "expense"),
+        Decimal("0.00")
+    )
+
+    balance = total_income - total_expense
+
+    return jsonify({
+        "total_income": str(total_income),
+        "total_expense": str(total_expense),
+        "balance": str(balance)
+    })
+
+@transactions_bp.route("/expenses-by-category", methods=["GET"])
+def expenses_by_category():
+    query = db.session.query(
+        Category.name,
+        db.func.sum(Transaction.amount).label("total")
+    ).join(
+        Category
+    ).filter(
+        Transaction.type == "expense"
+    )
+
+    month = request.args.get("month")
+    year = request.args.get("year")
+
+    if month or year:
+        try:
+            current_year = date.today().year
+            selected_year = int(year) if year else current_year
+            selected_month = int(month) if month else None
+
+            if selected_year < 1900 or selected_year > 2100:
+                raise ValueError
+
+            if selected_month and not 1 <= selected_month <= 12:
+                raise ValueError
+
+        except ValueError:
+            return jsonify({
+                "error": "Mês ou ano inválido"
+            }), 400
+
+        if selected_month:
+            start_date = date(selected_year, selected_month, 1)
+
+            if selected_month == 12:
+                end_date = date(selected_year + 1, 1, 1)
+            else:
+                end_date = date(selected_year, selected_month + 1, 1)
+
+        else:
+            start_date = date(selected_year, 1, 1)
+            end_date = date(selected_year + 1, 1, 1)
+
+        query = query.filter(
+            Transaction.date >= start_date,
+            Transaction.date < end_date
+        )
+
+    results = query.group_by(
+        Category.id,
+        Category.name
+    ).all()
+
+    expenses = []
+
+    for category_name, total in results:
+        expenses.append({
+            "category": category_name,
+            "total": str(total)
+        })
+
+    return jsonify({
+        "expenses_by_category": expenses
+    })
