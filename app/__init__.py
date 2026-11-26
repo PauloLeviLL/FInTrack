@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, render_template
 from app.extensions import db
 
 
@@ -21,9 +21,6 @@ def create_app():
 
     @app.route("/")
     def home():
-        return """
-            <h1>FinTrack</h1>
-            <p>Seu gerenciamento financeiro começa aqui!</p>
-        """
+        return render_template("index.html")
 
     return app

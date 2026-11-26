@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinTrack — Financial Infrastructure & Ledger</title>
+
+  <!-- Fontes Técnicas: Inter + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Estilos da Aplicação -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <span class="brand-name">FinTrack</span>
+        <span class="brand-tag">LEDGER</span>
+      </div>
+
+      <nav class="nav-group" aria-label="Navegação Principal">
+        <div class="nav-label">Workspace</div>
+        <button class="nav-item active" data-view="overview" type="button">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Overview
+        </button>
+        <button class="nav-item" data-view="ledger" type="button">
+          <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Lançamentos
+        </button>
+        <button class="nav-item" data-view="categories" type="button">
+          <svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Categorias
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span>SQLite · v1.0 · Single User</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL -->
+    <div class="main-area">
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="crumb">fintrack / <strong id="crumb-title">overview</strong></span>
+          <div class="search-wrap">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="filter-search" placeholder="Filtrar descrição ou hash..." autocomplete="off">
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <select id="filter-month" class="select-control" aria-label="Filtrar por mês">
+            <option value="all">Todos os meses</option>
+            <option value="2026-11" selected>Novembro 2026</option>
+            <option value="2026-10">Outubro 2026</option>
+            <option value="2026-09">Setembro 2026</option>
+          </select>
+
+          <select id="filter-category" class="select-control" aria-label="Filtrar por categoria">
+            <option value="all">Todas categorias</option>
+          </select>
+
+          <button class="btn-primary" id="btn-open-modal" type="button">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo Lançamento
+          </button>
+        </div>
+      </header>
+
+      <!-- CONTEÚDO: OVERVIEW -->
+      <main id="view-overview">
+        <!-- KPI STRIP -->
+        <section class="kpi-grid" aria-label="Resumo Financeiro">
+          <div class="kpi-cell highlight">
+            <span class="cross-marker" aria-hidden="true"></span>
+            <div class="kpi-top">
+              <span class="kpi-label">SALDO ATUAL</span>
+              <span class="kpi-badge neutral" id="kpi-balance-badge">NET</span>
+            </div>
+            <div class="kpi-value" id="kpi-balance">R$ 0,00</div>
+            <div class="kpi-sub" id="kpi-balance-sub">0 lançamentos no período</div>
+          </div>
+
+          <div class="kpi-cell">
+            <span class="cross-marker" aria-hidden="true"></span>
+            <div class="kpi-top">
+              <span class="kpi-label">RECEITAS</span>
+              <span class="kpi-badge up" id="kpi-income-count">0 entradas</span>
+            </div>
+            <div class="kpi-value" id="kpi-income">R$ 0,00</div>
+            <div class="kpi-sub">Entradas confirmadas</div>
+          </div>
+
+          <div class="kpi-cell">
+            <span class="cross-marker" aria-hidden="true"></span>
+            <div class="kpi-top">
+              <span class="kpi-label">DESPESAS</span>
+              <span class="kpi-badge down" id="kpi-expense-count">0 saídas</span>
+            </div>
+            <div class="kpi-value" id="kpi-expense">R$ 0,00</div>
+            <div class="kpi-sub">Saídas registradas</div>
+          </div>
+
+          <div class="kpi-cell">
+            <div class="kpi-top">
+              <span class="kpi-label">TAXA DE RETENÇÃO</span>
+              <span class="kpi-badge neutral">SAVINGS</span>
+            </div>
+            <div class="kpi-value" id="kpi-savings">0.0%</div>
+            <div class="kpi-sub" id="kpi-savings-sub">Margem líquida mensal</div>
+          </div>
+        </section>
+
+        <!-- GRÁFICOS (CHART.JS) -->
+        <section class="charts-grid" aria-label="Análise Gráfica">
+          <div class="panel-cell">
+            <span class="cross-marker" aria-hidden="true"></span>
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Fluxo de Caixa Mensal</h2>
+                <p class="panel-subtitle">Comparativo diário de receitas vs. despesas</p>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-swatch" style="background:#635BFF"></span>Receitas</span>
+                <span class="legend-item"><span class="legend-swatch" style="background:#F87171"></span>Despesas</span>
+              </div>
+            </div>
+            <div class="chart-box">
+              <canvas id="cashflowChart"></canvas>
+            </div>
+          </div>
+
+          <div class="panel-cell">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Distribuição de Despesas</h2>
+                <p class="panel-subtitle">Por categoria personalizada</p>
+              </div>
+            </div>
+            <div class="chart-box" style="height: 175px;">
+              <canvas id="categoryChart"></canvas>
+            </div>
+            <div class="breakdown-list" id="category-breakdown"></div>
+          </div>
+        </section>
+
+        <!-- HISTÓRICO RECENTE -->
+        <section class="ledger-section" aria-label="Histórico de Movimentações">
+          <div class="ledger-header">
+            <div class="ledger-title-group">
+              <h2 class="panel-title">Histórico de Movimentações</h2>
+              <span class="count-pill" id="ledger-count">0 registros</span>
+            </div>
+            <div class="segmented" role="group" aria-label="Filtrar por tipo">
+              <button class="seg-btn active" data-type="all" type="button">Todos</button>
+              <button class="seg-btn" data-type="income" type="button">Receitas</button>
+              <button class="seg-btn" data-type="expense" type="button">Despesas</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID / Hash</th>
+                  <th>Descrição</th>
+                  <th>Categoria</th>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th style="text-align:right">Valor</th>
+                  <th style="text-align:right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="ledger-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <!-- CONTEÚDO: LANÇAMENTOS (VISÃO DEDICADA) -->
+      <main id="view-ledger" style="display:none;">
+        <section class="ledger-section">
+          <div class="ledger-header">
+            <div class="ledger-title-group">
+              <h2 class="panel-title">Todos os Lançamentos</h2>
+              <span class="count-pill" id="ledger-full-count">0 registros</span>
+            </div>
+            <div class="segmented" role="group" aria-label="Filtrar por tipo">
+              <button class="seg-btn active" data-type="all" type="button">Todos</button>
+              <button class="seg-btn" data-type="income" type="button">Receitas</button>
+              <button class="seg-btn" data-type="expense" type="button">Despesas</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID / Hash</th>
+                  <th>Descrição</th>
+                  <th>Categoria</th>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th style="text-align:right">Valor</th>
+                  <th style="text-align:right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="ledger-full-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <!-- CONTEÚDO: CATEGORIAS PERSONALIZADAS -->
+      <main id="view-categories" style="display:none;">
+        <div class="categories-layout">
+          <section class="cat-form-panel">
+            <h2 class="panel-title">Nova Categoria</h2>
+            <p class="panel-subtitle" style="margin-bottom:18px;">Crie etiquetas personalizadas para classificar receitas e despesas.</p>
+
+            <form id="category-form">
+              <div class="field">
+                <label class="field-label" for="cat-name">Nome da Categoria</label>
+                <input type="text" id="cat-name" class="input-control" placeholder="Ex: Assinaturas, Freelance, Mercado..." required>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="cat-type">Escopo Padrão</label>
+                <select id="cat-type" class="input-control">
+                  <option value="expense">Despesa</option>
+                  <option value="income">Receita</option>
+                  <option value="both">Ambos</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="field-label">Identificador Cromático</label>
+                <div class="color-swatches" id="color-swatches">
+                  <button type="button" class="swatch-btn selected" data-color="#635BFF" style="background:#635BFF" aria-label="Violeta"></button>
+                  <button type="button" class="swatch-btn" data-color="#38BDF8" style="background:#38BDF8" aria-label="Ciano"></button>
+                  <button type="button" class="swatch-btn" data-color="#34D399" style="background:#34D399" aria-label="Esmeralda"></button>
+                  <button type="button" class="swatch-btn" data-color="#FBBF24" style="background:#FBBF24" aria-label="Âmbar"></button>
+                  <button type="button" class="swatch-btn" data-color="#F87171" style="background:#F87171" aria-label="Coral"></button>
+                  <button type="button" class="swatch-btn" data-color="#A78BFA" style="background:#A78BFA" aria-label="Lavanda"></button>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">Adicionar Categoria</button>
+            </form>
+          </section>
+
+          <section class="cat-list-panel">
+            <div class="ledger-header">
+              <div class="ledger-title-group">
+                <h2 class="panel-title">Categorias Cadastradas</h2>
+                <span class="count-pill" id="cat-total-pill">0 ativas</span>
+              </div>
+            </div>
+            <div class="cat-grid" id="categories-grid"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- MODAL: CRIAR / EDITAR LANÇAMENTO -->
+  <div class="modal-backdrop" id="tx-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 class="modal-title" id="modal-title">Novo Lançamento</h3>
+        <button class="icon-btn" id="btn-close-modal" type="button" aria-label="Fechar modal">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <form id="tx-form">
+        <input type="hidden" id="tx-id">
+        <div class="modal-body">
+          <div class="field">
+            <label class="field-label">Tipo de Movimentação</label>
+            <div class="type-toggle">
+              <button type="button" class="type-option active-expense" id="opt-expense" data-val="expense">Despesa (-)</button>
+              <button type="button" class="type-option" id="opt-income" data-val="income">Receita (+)</button>
+            </div>
+            <input type="hidden" id="tx-type" value="expense">
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="tx-desc">Descrição</label>
+            <input type="text" id="tx-desc" class="input-control" placeholder="Ex: Supermercado, Salário Mensal, AWS..." required>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="tx-amount">Valor (R$)</label>
+              <input type="number" id="tx-amount" class="input-control" step="0.01" min="0.01" placeholder="0.00" required>
+            </div>
+            <div class="field">
+              <label class="field-label" for="tx-date">Data</label>
+              <input type="date" id="tx-date" class="input-control" required>
+            </div>
+          </div>
+
+          <div class="field" style="margin-bottom:0;">
+            <label class="field-label" for="tx-category">Categoria</label>
+            <select id="tx-category" class="input-control" required></select>
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="btn-ghost" id="btn-cancel-modal">Cancelar</button>
+          <button type="submit" class="btn-primary" id="btn-save-tx">Salvar Lançamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST STACK -->
+  <div id="toast-stack" aria-live="polite"></div>
+
+  <!-- Lógica do Dashboard -->
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

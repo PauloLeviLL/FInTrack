@@ -107,7 +107,8 @@ def list_transactions():
             "type": transaction.type,
             "date": transaction.date.isoformat(),
             "description": transaction.description,
-            "category": transaction.category.name
+            "category": transaction.category.name,
+            "category_id": transaction.category_id
         })
 
     return jsonify({"transactions": result})
