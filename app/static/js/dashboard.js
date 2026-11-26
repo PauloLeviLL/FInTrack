@@ -109,15 +109,53 @@ function getFilteredTransactions() {
 }
 
 function populateCategorySelects() {
-  const filterSel = document.getElementById('filter-category');
-  const modalSel = document.getElementById('tx-category');
-  const currentFilter = filterSel.value;
+    const filterSel = document.getElementById('filter-category');
 
-  filterSel.innerHTML = '<option value="all">Todas categorias</option>' +
-    categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-  filterSel.value = currentFilter || 'all';
+    const currentFilter = filterSel.value;
 
-  modalSel.innerHTML = categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    filterSel.replaceChildren();
+
+    const allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.textContent = 'Todas categorias';
+    filterSel.appendChild(allOption);
+
+    categories.forEach(category => {
+        const option = document.createElement('option');
+
+        option.value = category.id;
+        option.textContent = category.name;
+
+        filterSel.appendChild(option);
+    });
+
+    filterSel.value = currentFilter || 'all';
+
+    updateTransactionCategorySelect();
+}
+
+function updateTransactionCategorySelect(selectedCategoryId = null) {
+    const modalSel = document.getElementById('tx-category');
+    const transactionType = document.getElementById('tx-type').value;
+
+    const compatibleCategories = categories.filter(category =>
+        category.type === transactionType
+    );
+
+    modalSel.replaceChildren();
+
+    compatibleCategories.forEach(category => {
+        const option = document.createElement('option');
+
+        option.value = category.id;
+        option.textContent = category.name;
+
+        modalSel.appendChild(option);
+    });
+
+    if (selectedCategoryId !== null) {
+        modalSel.value = String(selectedCategoryId);
+    }
 }
 
 function updateKPIs(list) {
@@ -139,170 +177,358 @@ function updateKPIs(list) {
 }
 
 function renderLedger(list) {
-  const rowsHTML = list.length ? list.map(tx => {
-    const cat = categories.find(c => c.id === tx.categoryId) || { name: 'Geral', color: '#8A94A6' };
-    const sign = tx.type === 'income' ? '+' : '-';
-    return `
-      <tr>
-        <td class="tx-hash">${tx.hash}</td>
-        <td class="tx-desc">${tx.desc}</td>
-        <td>
-          <span class="cat-badge">
-            <span class="cat-dot" style="background:${cat.color}"></span>
-            ${cat.name}
-          </span>
-        </td>
-        <td class="tx-date">${tx.date}</td>
-        <td><span class="status-tag ${tx.type}">${tx.type === 'income' ? 'RECEITA' : 'DESPESA'}</span></td>
-        <td class="tx-amount ${tx.type}">${sign} ${fmtBRL(tx.amount)}</td>
-        <td>
-          <div class="row-actions">
-            <button class="icon-btn" onclick="openEditModal(${tx.id})" title="Editar lançamento" type="button">
-              <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
-            <button class="icon-btn danger" onclick="deleteTransaction(${tx.id})" title="Excluir lançamento" type="button">
-              <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('') : `<tr><td colspan="7" class="empty-state">Nenhum lançamento encontrado para os filtros aplicados.</td></tr>`;
+    const createRows = () => {
+        if (!list.length) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
 
-  document.getElementById('ledger-tbody').innerHTML = rowsHTML;
-  document.getElementById('ledger-full-tbody').innerHTML = rowsHTML;
-  document.getElementById('ledger-count').textContent = `${list.length} registros`;
-  document.getElementById('ledger-full-count').textContent = `${list.length} registros`;
+            cell.colSpan = 7;
+            cell.className = 'empty-state';
+            cell.textContent = 'Nenhum lançamento encontrado para os filtros aplicados.';
+
+            row.appendChild(cell);
+            return [row];
+        }
+
+        return list.map(tx => {
+            const cat = categories.find(c => c.id === tx.categoryId) ||
+                { name: 'Geral', color: '#8A94A6' };
+
+            const sign = tx.type === 'income' ? '+' : '-';
+
+            const row = document.createElement('tr');
+
+            const hashCell = document.createElement('td');
+            hashCell.className = 'tx-hash';
+            hashCell.textContent = tx.hash;
+
+            const descCell = document.createElement('td');
+            descCell.className = 'tx-desc';
+            descCell.textContent = tx.desc;
+
+            const categoryCell = document.createElement('td');
+
+            const badge = document.createElement('span');
+            badge.className = 'cat-badge';
+
+            const dot = document.createElement('span');
+            dot.className = 'cat-dot';
+            dot.style.backgroundColor = cat.color;
+
+            badge.append(dot, document.createTextNode(cat.name));
+            categoryCell.appendChild(badge);
+
+            const dateCell = document.createElement('td');
+            dateCell.className = 'tx-date';
+            dateCell.textContent = tx.date;
+
+            const typeCell = document.createElement('td');
+
+            const status = document.createElement('span');
+            status.className = `status-tag ${tx.type}`;
+            status.textContent = tx.type === 'income' ? 'RECEITA' : 'DESPESA';
+
+            typeCell.appendChild(status);
+
+            const amountCell = document.createElement('td');
+            amountCell.className = `tx-amount ${tx.type}`;
+            amountCell.textContent = `${sign} ${fmtBRL(tx.amount)}`;
+
+            const actionsCell = document.createElement('td');
+
+            const actions = document.createElement('div');
+            actions.className = 'row-actions';
+
+            const editButton = document.createElement('button');
+            editButton.className = 'icon-btn';
+            editButton.title = 'Editar lançamento';
+            editButton.type = 'button';
+            editButton.addEventListener('click', () => {
+                window.openEditModal(tx.id);
+            });
+
+            editButton.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            `;
+
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'icon-btn danger';
+            deleteButton.title = 'Excluir lançamento';
+            deleteButton.type = 'button';
+            deleteButton.addEventListener('click', () => {
+                window.deleteTransaction(tx.id);
+            });
+
+            deleteButton.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            `;
+
+            actions.append(editButton, deleteButton);
+            actionsCell.appendChild(actions);
+
+            row.append(
+                hashCell,
+                descCell,
+                categoryCell,
+                dateCell,
+                typeCell,
+                amountCell,
+                actionsCell
+            );
+
+            return row;
+        });
+    };
+
+    const rows = createRows();
+
+    document.getElementById('ledger-tbody').replaceChildren(
+        ...rows.map(row => row.cloneNode(true))
+    );
+
+    document.getElementById('ledger-full-tbody').replaceChildren(
+        ...rows
+    );
+
+    document.getElementById('ledger-count').textContent =
+        `${list.length} registros`;
+
+    document.getElementById('ledger-full-count').textContent =
+        `${list.length} registros`;
 }
 
 function updateCharts(list) {
-  const days = ['01', '05', '10', '15', '20', '25', '30'];
-  const incomeSeries = days.map((_, idx) => {
-    const start = idx * 5 + 1;
-    const end = start + 4;
-    return list
-      .filter(t => t.type === 'income' && Number(t.date.slice(8, 10)) >= start && Number(t.date.slice(8, 10)) <= end)
-      .reduce((s, t) => s + t.amount, 0);
-  });
-  const expenseSeries = days.map((_, idx) => {
-    const start = idx * 5 + 1;
-    const end = start + 4;
-    return list
-      .filter(t => t.type === 'expense' && Number(t.date.slice(8, 10)) >= start && Number(t.date.slice(8, 10)) <= end)
-      .reduce((s, t) => s + t.amount, 0);
-  });
+    const days = ['01', '05', '10', '15', '20', '25', '30'];
 
-  if (cashflowChartInstance) cashflowChartInstance.destroy();
-  const ctxLine = document.getElementById('cashflowChart').getContext('2d');
-  cashflowChartInstance = new Chart(ctxLine, {
-    type: 'line',
-    data: {
-      labels: days.map(d => `Dia ${d}`),
-      datasets: [
-        {
-          label: 'Receitas',
-          data: incomeSeries,
-          borderColor: '#635BFF',
-          backgroundColor: 'rgba(99, 91, 255, 0.12)',
-          borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: '#635BFF',
-          tension: 0.35,
-          fill: true
+    const incomeSeries = days.map((_, idx) => {
+        const start = idx * 5 + 1;
+        const end = start + 4;
+
+        return list
+            .filter(t =>
+                t.type === 'income' &&
+                Number(t.date.slice(8, 10)) >= start &&
+                Number(t.date.slice(8, 10)) <= end
+            )
+            .reduce((sum, t) => sum + t.amount, 0);
+    });
+
+    const expenseSeries = days.map((_, idx) => {
+        const start = idx * 5 + 1;
+        const end = start + 4;
+
+        return list
+            .filter(t =>
+                t.type === 'expense' &&
+                Number(t.date.slice(8, 10)) >= start &&
+                Number(t.date.slice(8, 10)) <= end
+            )
+            .reduce((sum, t) => sum + t.amount, 0);
+    });
+
+    if (cashflowChartInstance) cashflowChartInstance.destroy();
+
+    const ctxLine = document.getElementById('cashflowChart').getContext('2d');
+
+    cashflowChartInstance = new Chart(ctxLine, {
+        type: 'line',
+        data: {
+            labels: days.map(d => `Dia ${d}`),
+            datasets: [
+                {
+                    label: 'Receitas',
+                    data: incomeSeries,
+                    borderColor: '#635BFF',
+                    backgroundColor: 'rgba(99, 91, 255, 0.12)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#635BFF',
+                    tension: 0.35,
+                    fill: true
+                },
+                {
+                    label: 'Despesas',
+                    data: expenseSeries,
+                    borderColor: '#F87171',
+                    backgroundColor: 'rgba(248, 113, 113, 0.06)',
+                    borderWidth: 1.75,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#F87171',
+                    tension: 0.35,
+                    fill: true
+                }
+            ]
         },
-        {
-          label: 'Despesas',
-          data: expenseSeries,
-          borderColor: '#F87171',
-          backgroundColor: 'rgba(248, 113, 113, 0.06)',
-          borderWidth: 1.75,
-          pointRadius: 3,
-          pointBackgroundColor: '#F87171',
-          tension: 0.35,
-          fill: true
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    grid: { color: '#161B26' },
+                    ticks: {
+                        color: '#525B6E',
+                        font: { family: 'JetBrains Mono', size: 10 }
+                    }
+                },
+                y: {
+                    grid: { color: '#161B26' },
+                    ticks: {
+                        color: '#525B6E',
+                        font: { family: 'JetBrains Mono', size: 10 },
+                        callback: v => 'R$ ' + v
+                    }
+                }
+            }
         }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: {
-          grid: { color: '#161B26' },
-          ticks: { color: '#525B6E', font: { family: 'JetBrains Mono', size: 10 } }
+    });
+
+    const expenseTotals = {};
+
+    list.filter(t => t.type === 'expense').forEach(t => {
+        expenseTotals[t.categoryId] =
+            (expenseTotals[t.categoryId] || 0) + t.amount;
+    });
+
+    const entries = Object.entries(expenseTotals)
+        .map(([catId, total]) => {
+            const cat = categories.find(c => c.id === Number(catId)) ||
+                { name: 'Outros', color: '#8A94A6' };
+
+            return {
+                name: cat.name,
+                color: cat.color,
+                total
+            };
+        })
+        .sort((a, b) => b.total - a.total);
+
+    if (categoryChartInstance) categoryChartInstance.destroy();
+
+    const ctxDonut = document.getElementById('categoryChart').getContext('2d');
+
+    categoryChartInstance = new Chart(ctxDonut, {
+        type: 'doughnut',
+        data: {
+            labels: entries.length
+                ? entries.map(e => e.name)
+                : ['Sem despesas'],
+            datasets: [{
+                data: entries.length
+                    ? entries.map(e => e.total)
+                    : [1],
+                backgroundColor: entries.length
+                    ? entries.map(e => e.color)
+                    : ['#161B26'],
+                borderColor: '#040507',
+                borderWidth: 3
+            }]
         },
-        y: {
-          grid: { color: '#161B26' },
-          ticks: {
-            color: '#525B6E',
-            font: { family: 'JetBrains Mono', size: 10 },
-            callback: (v) => 'R$ ' + v
-          }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '72%',
+            plugins: { legend: { display: false } }
         }
-      }
+    });
+
+    const breakdownEl = document.getElementById('category-breakdown');
+    breakdownEl.replaceChildren();
+
+    if (entries.length) {
+        entries.slice(0, 4).forEach(entry => {
+            const row = document.createElement('div');
+            row.className = 'breakdown-row';
+
+            const left = document.createElement('div');
+            left.className = 'breakdown-left';
+
+            const dot = document.createElement('span');
+            dot.className = 'breakdown-dot';
+            dot.style.backgroundColor = entry.color;
+
+            const name = document.createElement('span');
+            name.textContent = entry.name;
+
+            const value = document.createElement('span');
+            value.className = 'breakdown-val';
+            value.textContent = fmtBRL(entry.total);
+
+            left.append(dot, name);
+            row.append(left, value);
+
+            breakdownEl.appendChild(row);
+        });
+    } else {
+        const empty = document.createElement('div');
+        empty.className = 'panel-subtitle';
+        empty.textContent = 'Nenhuma despesa no período selecionado.';
+
+        breakdownEl.appendChild(empty);
     }
-  });
-
-  const expenseTotals = {};
-  list.filter(t => t.type === 'expense').forEach(t => {
-    expenseTotals[t.categoryId] = (expenseTotals[t.categoryId] || 0) + t.amount;
-  });
-
-  const entries = Object.entries(expenseTotals).map(([catId, total]) => {
-    const cat = categories.find(c => c.id === Number(catId)) || { name: 'Outros', color: '#8A94A6' };
-    return { name: cat.name, color: cat.color, total };
-  }).sort((a, b) => b.total - a.total);
-
-  if (categoryChartInstance) categoryChartInstance.destroy();
-  const ctxDonut = document.getElementById('categoryChart').getContext('2d');
-  categoryChartInstance = new Chart(ctxDonut, {
-    type: 'doughnut',
-    data: {
-      labels: entries.length ? entries.map(e => e.name) : ['Sem despesas'],
-      datasets: [{
-        data: entries.length ? entries.map(e => e.total) : [1],
-        backgroundColor: entries.length ? entries.map(e => e.color) : ['#161B26'],
-        borderColor: '#040507',
-        borderWidth: 3
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '72%',
-      plugins: { legend: { display: false } }
-    }
-  });
-
-  const breakdownEl = document.getElementById('category-breakdown');
-  breakdownEl.innerHTML = entries.slice(0, 4).map(e => `
-    <div class="breakdown-row">
-      <div class="breakdown-left">
-        <span class="breakdown-dot" style="background:${e.color}"></span>
-        <span>${e.name}</span>
-      </div>
-      <span class="breakdown-val">${fmtBRL(e.total)}</span>
-    </div>
-  `).join('') || '<div class="panel-subtitle">Nenhuma despesa no período selecionado.</div>';
 }
 
 function renderCategoriesView() {
-  document.getElementById('cat-total-pill').textContent = `${categories.length} ativas`;
-  document.getElementById('categories-grid').innerHTML = categories.map(cat => `
-    <div class="cat-card">
-      <div class="cat-card-info">
-        <span class="cat-dot" style="background:${cat.color}; width:10px; height:10px;"></span>
-        <div>
-          <div style="font-weight:500; font-size:13px;">${cat.name}</div>
-          <div class="cat-card-meta">${cat.type === 'income' ? 'Receita' : cat.type === 'expense' ? 'Despesa' : 'Ambos'}</div>
-        </div>
-      </div>
-      <button class="icon-btn danger" onclick="deleteCategory(${cat.id})" title="Remover categoria" type="button">
-        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-  `).join('');
+    document.getElementById('cat-total-pill').textContent =
+        `${categories.length} ativas`;
+
+    const grid = document.getElementById('categories-grid');
+    grid.replaceChildren();
+
+    categories.forEach(cat => {
+        const card = document.createElement('div');
+        card.className = 'cat-card';
+
+        const info = document.createElement('div');
+        info.className = 'cat-card-info';
+
+        const dot = document.createElement('span');
+        dot.className = 'cat-dot';
+        dot.style.backgroundColor = cat.color;
+        dot.style.width = '10px';
+        dot.style.height = '10px';
+
+        const details = document.createElement('div');
+
+        const name = document.createElement('div');
+        name.style.fontWeight = '500';
+        name.style.fontSize = '13px';
+        name.textContent = cat.name;
+
+        const meta = document.createElement('div');
+        meta.className = 'cat-card-meta';
+        meta.textContent =
+            cat.type === 'income' ? 'Receita' :
+            cat.type === 'expense' ? 'Despesa' : 'Ambos';
+
+        details.append(name, meta);
+        info.append(dot, details);
+
+        const button = document.createElement('button');
+        button.className = 'icon-btn danger';
+        button.title = 'Remover categoria';
+        button.type = 'button';
+
+        button.addEventListener('click', () => {
+            window.deleteCategory(cat.id);
+        });
+
+        button.innerHTML = `
+            <svg viewBox="0 0 24 24">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        `;
+
+        card.append(info, button);
+        grid.appendChild(card);
+    });
 }
 
 function refreshApp() {
@@ -319,12 +545,19 @@ function refreshApp() {
 // =========================================================
 const modal = document.getElementById('tx-modal');
 
-function setModalType(type) {
-  document.getElementById('tx-type').value = type;
-  const optExp = document.getElementById('opt-expense');
-  const optInc = document.getElementById('opt-income');
-  optExp.className = 'type-option' + (type === 'expense' ? ' active-expense' : '');
-  optInc.className = 'type-option' + (type === 'income' ? ' active-income' : '');
+function setModalType(type, selectedCategoryId = null) {
+    document.getElementById('tx-type').value = type;
+
+    const optExp = document.getElementById('opt-expense');
+    const optInc = document.getElementById('opt-income');
+
+    optExp.className = 'type-option' +
+        (type === 'expense' ? ' active-expense' : '');
+
+    optInc.className = 'type-option' +
+        (type === 'income' ? ' active-income' : '');
+
+    updateTransactionCategorySelect(selectedCategoryId);
 }
 
 document.getElementById('opt-expense').addEventListener('click', () => setModalType('expense'));
@@ -350,9 +583,7 @@ window.openEditModal = function(id) {
     document.getElementById('tx-desc').value = tx.desc;
     document.getElementById('tx-amount').value = tx.amount;
     document.getElementById('tx-date').value = tx.date;
-    document.getElementById('tx-category').value = tx.categoryId;
-
-    setModalType(tx.type);
+    setModalType(tx.type, tx.categoryId);
 
     modal.classList.add('open');
 };
@@ -513,26 +744,35 @@ document.getElementById('filter-search').addEventListener('input', refreshApp);
 // TOAST FEEDBACK + UNDO
 // =========================================================
 function showToast(msg, allowUndo = false) {
-  const stack = document.getElementById('toast-stack');
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `<span>${msg}</span>`;
+    const stack = document.getElementById('toast-stack');
 
-  if (allowUndo && lastDeletedTx) {
-    const undoBtn = document.createElement('button');
-    undoBtn.className = 'toast-undo';
-    undoBtn.textContent = 'UNDO';
-    undoBtn.onclick = () => {
-      transactions.push(lastDeletedTx);
-      lastDeletedTx = null;
-      toast.remove();
-      refreshApp();
-    };
-    toast.appendChild(undoBtn);
-  }
+    const toast = document.createElement('div');
+    toast.className = 'toast';
 
-  stack.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+    const message = document.createElement('span');
+    message.textContent = msg;
+
+    toast.appendChild(message);
+
+    if (allowUndo && lastDeletedTx) {
+        const undoBtn = document.createElement('button');
+
+        undoBtn.className = 'toast-undo';
+        undoBtn.textContent = 'UNDO';
+
+        undoBtn.addEventListener('click', () => {
+            transactions.push(lastDeletedTx);
+            lastDeletedTx = null;
+            toast.remove();
+            refreshApp();
+        });
+
+        toast.appendChild(undoBtn);
+    }
+
+    stack.appendChild(toast);
+
+    setTimeout(() => toast.remove(), 4000);
 }
 
 // Inicialização
